@@ -51,12 +51,13 @@ jobs:
           foreach ($proj in $projects) {
               Write-Host "=== Patching $proj ==="
               $xml = [xml](Get-Content $proj)
-              $ns = @{ ns = "http://schemas.microsoft.com/developer/msbuild/2003" }
+              $nsmgr = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+              $nsmgr.AddNamespace("ns", "http://schemas.microsoft.com/developer/msbuild/2003")
 
-              foreach ($refNode in $xml.SelectNodes("//ns:Reference", $ns)) {
+              foreach ($refNode in $xml.SelectNodes("//ns:Reference", $nsmgr)) {
                   $asmName = $refNode.GetAttribute("Include")
                   $dllName = ($asmName -split ',')[0].Trim()
-                  $hintPath = $refNode.SelectSingleNode("ns:HintPath", $ns)
+                  $hintPath = $refNode.SelectSingleNode("ns:HintPath", $nsmgr)
                   if ($refs.ContainsKey($dllName) -and $hintPath) {
                       $oldPath = $hintPath.InnerText
                       $newPath = $refs[$dllName]
