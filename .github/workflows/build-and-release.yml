@@ -9,68 +9,27 @@ permissions:
   contents: write
 
 env:
-  SOLUTION: SDRSharp.GpredictConnector.sln
   PROJECT: SDRSharp.GpredictConnector\SDRSharp.GpredictConnector.csproj
   BUILD_CONFIG: Release
-  SDRSHARP_DLL_DIR: ext_libs
 
 jobs:
   build-and-release:
-    runs-on: windows-2022
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
 
-      - name: Setup NuGet
-        uses: nuget/setup-nuget@v2
+      - name: Restore
+        run: dotnet restore ${{ env.PROJECT }}
 
-      - name: Restore NuGet packages
-        run: nuget restore ${{ env.SOLUTION }}
-
-      # ── Patch dei percorsi HintPath nei .csproj ──────────────────────
-      - name: Patch HintPath references
-        shell: pwsh
-        run: |
-          $dllDir = (Resolve-Path "${{ env.SDRSHARP_DLL_DIR }}").Path
-
-          $refs = @{
-              "SDRSharp.Common.dll" = "$dllDir\SDRSharp.Common.dll"
-              "SDRSharp.PanView.dll" = "$dllDir\SDRSharp.PanView.dll"
-              "SDRSharp.Radio.dll"   = "$dllDir\SDRSharp.Radio.dll"
-          }
-
-          $projects = @(
-              "${{ env.PROJECT }}",
-              "UnitTestGpredictConnector\UnitTestGpredictConnector.csproj"
-          )
-
-          foreach ($proj in $projects) {
-              Write-Host "=== Patching $proj ==="
-              $xml = [xml](Get-Content $proj)
-              $nsmgr = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
-              $nsmgr.AddNamespace("ns", "http://schemas.microsoft.com/developer/msbuild/2003")
-
-              foreach ($refNode in $xml.SelectNodes("//ns:Reference", $nsmgr)) {
-                  $asmName = $refNode.GetAttribute("Include")
-                  $dllName = ($asmName -split ',')[0].Trim()
-                  $hintPath = $refNode.SelectSingleNode("ns:HintPath", $nsmgr)
-                  if ($refs.ContainsKey($dllName) -and $hintPath) {
-                      $oldPath = $hintPath.InnerText
-                      $newPath = $refs[$dllName]
-                      Write-Host "  Patching $dllName : $oldPath -> $newPath"
-                      $hintPath.InnerText = $newPath
-                  }
-              }
-              $xml.Save((Resolve-Path $proj).Path)
-          }
-          Write-Host "HintPath patching complete."
-
-      - name: Build solution
-        run: msbuild ${{ env.SOLUTION }} /p:Configuration=${{ env.BUILD_CONFIG }} /p:Platform="Any CPU" /p:PostBuildEvent= /verbosity:minimal
+      - name: Build
+        run: dotnet build ${{ env.PROJECT }} -c ${{ env.BUILD_CONFIG }} --no-restore
 
       - name: Get short SHA
         id: vars
@@ -90,6 +49,6 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            SDRSharp.GpredictConnector/bin/Release/SDRSharp.GpredictConnector.dll
+            SDRSharp.GpredictConnector/bin/Release/net9.0-windows/SDRSharp.GpredictConnector.dll
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
