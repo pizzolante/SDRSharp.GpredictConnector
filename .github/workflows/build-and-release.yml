@@ -16,7 +16,7 @@ env:
 
 jobs:
   build-and-release:
-    runs-on: windows-latest
+    runs-on: windows-2019
 
     steps:
       - name: Checkout repository
@@ -27,17 +27,6 @@ jobs:
 
       - name: Setup NuGet
         uses: nuget/setup-nuget@v2
-
-      - name: Install .NET Framework 4.6.1 Targeting Pack
-        shell: pwsh
-        run: |
-          Write-Host "Downloading .NET Framework 4.6.1 Developer Pack ..."
-          $url = "https://download.microsoft.com/download/E/4/1/E4173890-A24A-4936-9FC9-AF930FE3FA40/NDP462-DevPack-KB3151934-ENU.exe"
-          $installer = "$env:TEMP\ndp462-devpack.exe"
-          Invoke-WebRequest -Uri $url -OutFile $installer
-          Write-Host "Installing silently ..."
-          Start-Process -FilePath $installer -ArgumentList "/quiet /norestart" -Wait -NoNewWindow
-          Write-Host "Targeting pack installed."
 
       - name: Restore NuGet packages
         run: nuget restore ${{ env.SOLUTION }}
