@@ -1,0 +1,94 @@
+name: Build & Release Plugin
+
+on:
+  push:
+    branches:
+      - test
+
+permissions:
+  contents: write
+
+env:
+  SOLUTION: SDRSharp.GpredictConnector.sln
+  PROJECT: SDRSharp.GpredictConnector\SDRSharp.GpredictConnector.csproj
+  BUILD_CONFIG: Release
+  SDRSHARP_DLL_DIR: ext_libs
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore ${{ env.SOLUTION }}
+
+      # ── Patch dei percorsi HintPath nei .csproj ──────────────────────
+      - name: Patch HintPath references
+        shell: pwsh
+        run: |
+          $dllDir = (Resolve-Path "${{ env.SDRSHARP_DLL_DIR }}").Path
+
+          $refs = @{
+              "SDRSharp.Common.dll" = "$dllDir\SDRSharp.Common.dll"
+              "SDRSharp.PanView.dll" = "$dllDir\SDRSharp.PanView.dll"
+              "SDRSharp.Radio.dll"   = "$dllDir\SDRSharp.Radio.dll"
+          }
+
+          $projects = @(
+              "${{ env.PROJECT }}",
+              "UnitTestGpredictConnector\UnitTestGpredictConnector.csproj"
+          )
+
+          foreach ($proj in $projects) {
+              Write-Host "=== Patching $proj ==="
+              $xml = [xml](Get-Content $proj)
+              $ns = @{ ns = "http://schemas.microsoft.com/developer/msbuild/2003" }
+
+              foreach ($refNode in $xml.SelectNodes("//ns:Reference", $ns)) {
+                  $asmName = $refNode.GetAttribute("Include")
+                  $dllName = ($asmName -split ',')[0].Trim()
+                  $hintPath = $refNode.SelectSingleNode("ns:HintPath", $ns)
+                  if ($refs.ContainsKey($dllName) -and $hintPath) {
+                      $oldPath = $hintPath.InnerText
+                      $newPath = $refs[$dllName]
+                      Write-Host "  Patching $dllName : $oldPath -> $newPath"
+                      $hintPath.InnerText = $newPath
+                  }
+              }
+              $xml.Save((Resolve-Path $proj).Path)
+          }
+          Write-Host "HintPath patching complete."
+
+      - name: Build solution
+        run: msbuild ${{ env.SOLUTION }} /p:Configuration=${{ env.BUILD_CONFIG }} /p:Platform="Any CPU" /p:PostBuildEvent= /verbosity:minimal
+
+      - name: Get short SHA
+        id: vars
+        shell: bash
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: plugin-${{ steps.vars.outputs.short_sha }}
+          name: plugin-${{ steps.vars.outputs.short_sha }}
+          body: |
+            Build automatica del plugin **SDRSharp.GpredictConnector**
+            - Commit: `${{ github.sha }}`
+            - Branch: `${{ github.ref_name }}`
+          draft: false
+          prerelease: false
+          files: |
+            SDRSharp.GpredictConnector/bin/Release/SDRSharp.GpredictConnector.dll
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
