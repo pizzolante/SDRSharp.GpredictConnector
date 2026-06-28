@@ -10,6 +10,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
+    <Deterministic>false</Deterministic>
   </PropertyGroup>
 
   <ItemGroup>
