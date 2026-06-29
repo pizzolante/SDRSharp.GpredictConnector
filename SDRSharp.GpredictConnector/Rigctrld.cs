@@ -25,10 +25,14 @@ namespace SDRSharp.GpredictConnector
                 return FrequencyInHz.ToString() + "\n";
 
             // --- Set frequency: "F <number>" or "F<number>" ---
-            if (command.Length > 1 && (command[0] == 'F' || command[0] == 'f'))
+            if (command.Length >= 1 && (command[0] == 'F' || command[0] == 'f'))
             {
+                // If command is just "F" (or "f") with no frequency, it's a protocol error
+                if (command.Length < 2)
+                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+
                 string payload;
-                if (command.Length > 2 && command[1] == ' ')
+                if (command[1] == ' ')
                     payload = command.Substring(2);  // skip "F "
                 else
                     payload = command.Substring(1);  // skip "F"

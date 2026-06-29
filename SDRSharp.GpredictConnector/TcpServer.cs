@@ -50,6 +50,8 @@ namespace SDRSharp.GpredictConnector
                 
                 byte[] message = new byte[4096];
                 int bytesRead;
+                // Buffer for partial (incomplete) commands not yet terminated by \n
+                string pending = string.Empty;
 
                 while (!ct.IsCancellationRequested)
                 {
@@ -58,15 +60,35 @@ namespace SDRSharp.GpredictConnector
                         bytesRead = 0;
                         //read message from client
                         bytesRead = await clientStream.ReadAsync(message, 0, 4096, ct).ConfigureAwait(true);
+                        if (bytesRead == 0)
+                        {
+                            // Client disconnected
+                            break;
+                        }
+
                         var str = System.Text.Encoding.UTF8.GetString(message, 0, bytesRead);
-                        var answer = rigctrl.ExecCommand(str);
-                        var answerBytes = (new System.Text.ASCIIEncoding()).GetBytes(answer);
-                        await clientStream.WriteAsync(answerBytes, 0, answerBytes.Length,ct).ConfigureAwait(true);
-                        
+                        pending += str;
+
+                        // Process all complete commands (separated by \n)
+                        int newlineIndex;
+                        while ((newlineIndex = pending.IndexOf('\n')) >= 0)
+                        {
+                            // Extract one complete command (without the \n)
+                            string command = pending.Substring(0, newlineIndex).TrimEnd('\r');
+                            // Remove the processed command + \n from the buffer
+                            pending = pending.Substring(newlineIndex + 1);
+
+                            if (string.IsNullOrWhiteSpace(command))
+                                continue; // Skip empty lines
+
+                            var answer = rigctrl.ExecCommand(command);
+                            var answerBytes = (new System.Text.ASCIIEncoding()).GetBytes(answer);
+                            await clientStream.WriteAsync(answerBytes, 0, answerBytes.Length, ct).ConfigureAwait(true);
+                        }
+                        // Any remaining text stays in 'pending' for the next read
                     }
                     catch
                     {
-                        
                         //a socket error has occured
                         break;
                     }
