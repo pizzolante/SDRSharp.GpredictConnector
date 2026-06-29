@@ -11,7 +11,8 @@ namespace SDRSharp.GpredictConnector
             command = command.Replace("\n", String.Empty); // remove line feed from command
             if (command.StartsWith("F"))
             {
-                Regex regex = new Regex("^F[ ]*([0-9]{1,})$");
+                // Supports both "F 7074055" and "F 7074055.000000" (WSJT-X sends decimal)
+                Regex regex = new Regex(@"^F[ ]*([0-9]+(?:\.[0-9]*)?)$");
                 var matches = regex.Matches(command);
                 if (matches.Count > 0)
                 {
@@ -63,7 +64,8 @@ namespace SDRSharp.GpredictConnector
             {
                 try
                 {
-                    FrequencyInHz = long.Parse(value);
+                    // Parse as double first to handle decimal frequencies from WSJT-X (e.g. "7074055.000000")
+                    FrequencyInHz = (long)double.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
                 }
                 catch { }
             }
