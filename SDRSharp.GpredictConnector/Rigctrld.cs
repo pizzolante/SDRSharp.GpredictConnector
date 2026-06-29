@@ -17,19 +17,23 @@ namespace SDRSharp.GpredictConnector
             if (string.IsNullOrEmpty(command))
                 return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
 
-            // Normalize: trim whitespace, \r, \n
+            // Normalize: strip all whitespace, \r, \n from both ends
             command = command.Trim();
 
-            // --- Read frequency ("f") ---
-            if (command.Length == 1 && command[0] == 'f')
+            // --- Read frequency: exact "f" ---
+            if (command == "f")
                 return FrequencyInHz.ToString() + "\n";
 
-            // --- Set frequency ("F <value>") ---
+            // --- Set frequency: "F <number>" or "F<number>" ---
             if (command.Length > 1 && (command[0] == 'F' || command[0] == 'f'))
             {
-                // After 'F', expect a space and then the frequency value.
-                // Remove the 'F' prefix, trim, attempt to parse.
-                string payload = command.Substring(1).Trim();
+                string payload;
+                if (command.Length > 2 && command[1] == ' ')
+                    payload = command.Substring(2);  // skip "F "
+                else
+                    payload = command.Substring(1);  // skip "F"
+
+                payload = payload.Trim();
                 if (payload.Length == 0)
                     return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
 

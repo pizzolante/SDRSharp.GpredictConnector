@@ -58,7 +58,7 @@ namespace SDRSharp.GpredictConnector
                         bytesRead = 0;
                         //read message from client
                         bytesRead = await clientStream.ReadAsync(message, 0, 4096, ct).ConfigureAwait(true);
-                        var str = System.Text.Encoding.Default.GetString(message, 0,bytesRead);
+                        var str = System.Text.Encoding.UTF8.GetString(message, 0, bytesRead);
                         var answer = rigctrl.ExecCommand(str);
                         var answerBytes = (new System.Text.ASCIIEncoding()).GetBytes(answer);
                         await clientStream.WriteAsync(answerBytes, 0, answerBytes.Length,ct).ConfigureAwait(true);

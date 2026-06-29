@@ -5,6 +5,7 @@
 * added workflow in github repository
 * tested with 
   * gpredict v2.3.37
+  * WSJT-X V3.0.1
   * SDRSharp v1.0.0.1922
 
 ## v0.3
