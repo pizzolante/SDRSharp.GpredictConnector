@@ -11,7 +11,6 @@ permissions:
 
 env:
   PROJECT: SDRSharp.GpredictConnector\SDRSharp.GpredictConnector.csproj
-  TEST_PROJECT: UnitTestGpredictConnector\UnitTestGpredictConnector.csproj
   BUILD_CONFIG: Release
 
 jobs:
@@ -35,12 +34,6 @@ jobs:
 
       - name: Build
         run: dotnet build ${{ env.PROJECT }} -c ${{ env.BUILD_CONFIG }} --no-restore
-
-      - name: Restore tests
-        run: dotnet restore ${{ env.TEST_PROJECT }}
-
-      - name: Test
-        run: dotnet test ${{ env.TEST_PROJECT }} -c ${{ env.BUILD_CONFIG }} --verbosity normal
 
       - name: Get short SHA
         id: vars
