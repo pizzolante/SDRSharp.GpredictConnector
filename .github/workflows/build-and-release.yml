@@ -40,14 +40,14 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: plugin-${{ steps.vars.outputs.short_sha }}
-          name: plugin-${{ steps.vars.outputs.short_sha }}
+          tag_name: GpredictConnector-${{ steps.vars.outputs.short_sha }}
+          name: GpredictConnector ${{ steps.vars.outputs.short_sha }}
           body: |
-            Build automatica del plugin **SDRSharp.GpredictConnector**
+            Auto Build **SDRSharp.GpredictConnector**
             - Commit: `${{ github.sha }}`
             - Branch: `${{ github.ref_name }}`
           draft: false
-          prerelease: false
+          prerelease: true
           files: |
             SDRSharp.GpredictConnector/bin/Release/net9.0-windows/SDRSharp.GpredictConnector.dll
         env:
