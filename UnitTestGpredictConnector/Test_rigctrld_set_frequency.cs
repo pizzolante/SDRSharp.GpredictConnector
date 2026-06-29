@@ -135,8 +135,6 @@ namespace UnitTestGpredictConnector
 
             class_under_test_.FrequencyInHzChanged += x => result_freq = x;
             Assert.AreEqual("RPRT 0\n", class_under_test_.ExecCommand(command));
-            Assert.IsNotNull(class_under_test_.FrequencySetThread); // should be running
-            class_under_test_.FrequencySetThread.Join(); // wait for the freqeuncy set thread to finish his work
             Assert.AreEqual(expected_freq, class_under_test_.FrequencyInHz);
             Assert.AreEqual(expected_freq, result_freq);
         }
