@@ -102,6 +102,33 @@ namespace UnitTestGpredictConnector
             Assert.AreEqual(0, class_under_test_.FrequencyInHz);
         }
 
+        // WSJT-X sends frequencies with decimal point and trailing LF, e.g. "F 7074055.000000\n"
+        [TestMethod]
+        public void SetFrequency_WSJTX_40m()
+        {
+            TestHelper_SetFrequency(expected_freq: 7074055, command: "F 7074055.000000\n");
+        }
+        [TestMethod]
+        public void SetFrequency_WSJTX_2m()
+        {
+            TestHelper_SetFrequency(expected_freq: 144800123, command: "F 144800123.000000\n");
+        }
+        [TestMethod]
+        public void SetFrequency_WSJTX_70cm()
+        {
+            TestHelper_SetFrequency(expected_freq: 432000000, command: "F 432000000.000\n");
+        }
+        [TestMethod]
+        public void SetFrequency_WSJTX_decimal_without_LF()
+        {
+            TestHelper_SetFrequency(expected_freq: 7074055, command: "F 7074055.000000");
+        }
+        [TestMethod]
+        public void SetFrequency_WSJTX_zero_decimals()
+        {
+            TestHelper_SetFrequency(expected_freq: 144174000, command: "F 144174000.0\n");
+        }
+
         private void TestHelper_SetFrequency(long expected_freq, string command)
         {
             long result_freq = 0;

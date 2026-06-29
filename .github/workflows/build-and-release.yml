@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - test
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 env:
   PROJECT: SDRSharp.GpredictConnector\SDRSharp.GpredictConnector.csproj
+  TEST_PROJECT: UnitTestGpredictConnector\UnitTestGpredictConnector.csproj
   BUILD_CONFIG: Release
 
 jobs:
@@ -25,11 +27,20 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
+      - name: Clean
+        run: dotnet clean ${{ env.PROJECT }} -c ${{ env.BUILD_CONFIG }}
+
       - name: Restore
         run: dotnet restore ${{ env.PROJECT }}
 
       - name: Build
         run: dotnet build ${{ env.PROJECT }} -c ${{ env.BUILD_CONFIG }} --no-restore
+
+      - name: Restore tests
+        run: dotnet restore ${{ env.TEST_PROJECT }}
+
+      - name: Test
+        run: dotnet test ${{ env.TEST_PROJECT }} -c ${{ env.BUILD_CONFIG }} --no-restore --verbosity normal
 
       - name: Get short SHA
         id: vars
