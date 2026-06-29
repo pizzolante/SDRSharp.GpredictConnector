@@ -202,6 +202,31 @@ namespace UnitTestHamlibTCP
             {
                 throw new NotImplementedException();
             }
+
+            // --- Newer SDRSharp interface members added in SDK revision 1921+ ---
+
+            public bool LockCarrier { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public bool AntiFading { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public float VisualPeak => throw new NotImplementedException();
+            public float VisualFloor => throw new NotImplementedException();
+            public string ThemeName => throw new NotImplementedException();
+            public Color ThemeForeColor => throw new NotImplementedException();
+            public Color ThemeBackColor => throw new NotImplementedException();
+            public Color ThemePanelColor => throw new NotImplementedException();
+            public Color ThemeEditorColor => throw new NotImplementedException();
+            public System.Drawing.Drawing2D.ColorBlend SpectrumGradient => throw new NotImplementedException();
+            public System.Drawing.Drawing2D.ColorBlend WaterfallGradient => throw new NotImplementedException();
+            public bool CenterFrequencyIsLocked { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+
+            public void RegisterKeyboardShortcut(Keys key, Action action)
+            {
+                throw new NotImplementedException();
+            }
+
+            public IEnumerable<ISharpPlugin> GetSharpPlugins()
+            {
+                throw new NotImplementedException();
+            }
         }
         
         [TestMethod]
