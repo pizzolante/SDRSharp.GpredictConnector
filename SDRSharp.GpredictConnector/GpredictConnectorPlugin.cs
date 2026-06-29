@@ -1,10 +1,12 @@
 ﻿using SDRSharp.Common;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using SDRSharp.Radio;
 
 namespace SDRSharp.GpredictConnector
 {
@@ -14,6 +16,7 @@ namespace SDRSharp.GpredictConnector
         private Controlpanel _controlpanel;
         private ISharpControl control_;
         private TcpServer tcpServer_;
+        private Rigctrld rigctrl_;
 
         public UserControl Gui
         {
@@ -43,6 +46,7 @@ namespace SDRSharp.GpredictConnector
             //Instanciate all needed objects
             _controlpanel = new Controlpanel();          
             Rigctrld rigctrl = new Rigctrld();
+            rigctrl_ = rigctrl;
             TcpServer tcpServer = new TcpServer(rigctrl);
             tcpServer_ = tcpServer;
             //Link the objects together
@@ -52,12 +56,61 @@ namespace SDRSharp.GpredictConnector
             tcpServer.Enabled += _controlpanel.TcpServer_Enabled_Changed;
             rigctrl.FrequencyInHzChanged += _controlpanel.ReceivedFrequencyInHzChanged;
             rigctrl.FrequencyInHzChanged += Rigctrl_FrequencyInHzChanged;
-            
+            rigctrl.ModeChanged += Rigctrl_ModeChanged;
+
+            // Sync SDR# frequency changes back to rigctrl
+            var notifier = control_ as INotifyPropertyChanged;
+            if (notifier != null)
+            {
+                notifier.PropertyChanged += OnSdrSharpPropertyChanged;
+            }
+
+            // Set initial frequency from SDR# to rigctrl
+            rigctrl_.FrequencyInHz = control_.Frequency;
+        }
+
+        private void OnSdrSharpPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == "Frequency")
+            {
+                rigctrl_.FrequencyInHz = control_.Frequency;
+            }
+            else if (e.PropertyName == "DetectorType")
+            {
+                rigctrl_.Mode = control_.DetectorType.ToString().ToUpperInvariant();
+            }
         }
 
         private void Rigctrl_FrequencyInHzChanged(long frequency)
         {
             control_.Frequency = frequency;
+        }
+
+        private void Rigctrl_ModeChanged(string mode, int passband)
+        {
+            DetectorType? dt = MapModeToDetectorType(mode);
+            if (dt.HasValue)
+            {
+                control_.DetectorType = dt.Value;
+            }
+        }
+
+        private static DetectorType? MapModeToDetectorType(string mode)
+        {
+            switch (mode)
+            {
+                case "AM": return DetectorType.AM;
+                case "FM":
+                case "NFM": return DetectorType.NFM;
+                case "WFM": return DetectorType.WFM;
+                case "LSB": return DetectorType.LSB;
+                case "USB": return DetectorType.USB;
+                case "DSB": return DetectorType.DSB;
+                case "CW":
+                case "CWR": return DetectorType.CW;
+                case "RAW": return DetectorType.RAW;
+                default: return null;
+            }
         }
     }
 }

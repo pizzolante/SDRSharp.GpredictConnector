@@ -1,0 +1,69 @@
+name: Build & Release Plugin
+
+on:
+  push:
+    branches:
+      - test
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PROJECT: SDRSharp.GpredictConnector\SDRSharp.GpredictConnector.csproj
+  BUILD_CONFIG: Release
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Clean
+        run: dotnet clean ${{ env.PROJECT }} -c ${{ env.BUILD_CONFIG }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.PROJECT }}
+
+      - name: Build
+        run: dotnet build ${{ env.PROJECT }} -c ${{ env.BUILD_CONFIG }} --no-restore
+
+      - name: Get short SHA
+        id: vars
+        shell: bash
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Package GPredictConnector.zip
+        shell: pwsh
+        run: |
+          $dest = "SDRSharp.GpredictConnector/bin/Release/net9.0-windows/GPredictConnector.zip"
+          Compress-Archive -Path @(
+            "SDRSharp.GpredictConnector/bin/Release/net9.0-windows/SDRSharp.GpredictConnector.dll",
+            "CHANGELOG.md",
+            "LICENSE",
+            "README.md"
+          ) -DestinationPath $dest
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: GpredictConnector-${{ steps.vars.outputs.short_sha }}
+          name: GpredictConnector ${{ steps.vars.outputs.short_sha }}
+          body: |
+            Auto Build **SDRSharp.GpredictConnector**
+            - Commit: `${{ github.sha }}`
+            - Branch: `${{ github.ref_name }}`
+          draft: false
+          prerelease: true
+          files: |
+            SDRSharp.GpredictConnector/bin/Release/net9.0-windows/GPredictConnector.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

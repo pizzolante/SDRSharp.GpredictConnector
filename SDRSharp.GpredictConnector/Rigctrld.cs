@@ -1,35 +1,147 @@
 ﻿using System;
-using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace SDRSharp.GpredictConnector
 {
     class Rigctrld
     {
+        /// <summary>
+        /// Parses a rigctld-compatible command and returns the response.
+        /// Supported commands:
+        ///   f               — read current frequency (Hz)
+        ///   F 123456789     — set frequency (integer Hz)
+        ///   F 7074055.000   — set frequency (decimal Hz, as sent by WSJT-X / gpredict)
+        ///   m               — read current mode
+        ///   M USB 2400      — set mode and optional passband (Hz)
+        /// </summary>
         public string ExecCommand(string command)
         {
-            command = command.Replace("\n", String.Empty); // remove line feed from command
-            if (command.StartsWith("F"))
+            if (string.IsNullOrEmpty(command))
+                return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+
+            // Normalize: strip all whitespace, \r, \n from both ends
+            command = command.Trim();
+
+            // --- Read frequency: exact "f" ---
+            if (command == "f")
+                return FrequencyInHz.ToString() + "\n";
+
+            // --- Set frequency: "F <number>" or "F<number>" ---
+            if (command.Length >= 1 && (command[0] == 'F' || command[0] == 'f'))
             {
-                Regex regex = new Regex("^F[ ]*([0-9]{1,})$");
-                var matches = regex.Matches(command);
-                if (matches.Count > 0)
+                // If command is just "F" (or "f") with no frequency, it's a protocol error
+                if (command.Length < 2)
+                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+
+                string payload;
+                if (command[1] == ' ')
+                    payload = command.Substring(2);  // skip "F "
+                else
+                    payload = command.Substring(1);  // skip "F"
+
+                payload = payload.Trim();
+                if (payload.Length == 0)
+                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+
+                if (TryParseFrequency(payload, out long hz))
                 {
-                    if (matches[0].Groups.Count == 2)
-                    {
-                        var f_string = matches[0].Groups[1].Value;
-                        frequency_set_thread_ = new Thread(() => FrequencyInHzString = f_string);
-                        frequency_set_thread_.Start();
-                    }
+                    FrequencyInHz = hz;
                     return GenerateReturn(HamlibErrorcode.RIG_OK);
                 }
-                return GenerateReturn(HamlibErrorcode.RIG_EPROTO); ; //wrong or unknown F command
+
+                return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
             }
-            else if (command.Equals("f"))
+
+            // --- Read mode: exact "m" ---
+            if (command == "m")
             {
-                return FrequencyInHzString + "\n"; //return current freq.
+                if (string.IsNullOrEmpty(mode_))
+                    return GenerateReturn(HamlibErrorcode.RIG_ENAVAIL);
+                return mode_ + "\n" + passband_.ToString() + "\n";
             }
-            return GenerateReturn(HamlibErrorcode.RIG_ENIMPL); //recieved unsupported command
+
+            // --- Set mode: "M <mode> [<passband>]" ---
+            if (command.Length >= 1 && command[0] == 'M')
+            {
+                // If command is just "M" with no mode, it's a protocol error
+                if (command.Length < 2)
+                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+
+                string payload;
+                if (command[1] == ' ')
+                    payload = command.Substring(2);  // skip "M "
+                else
+                    payload = command.Substring(1);  // skip "M"
+
+                payload = payload.Trim();
+                if (payload.Length == 0)
+                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+
+                // Split mode and optional passband
+                string[] parts = payload.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                string newMode = parts[0].ToUpperInvariant();
+                int newPassband = 0;
+                if (parts.Length >= 2)
+                    int.TryParse(parts[1], out newPassband);
+
+                // Validate mode against known Hamlib modes
+                if (IsValidMode(newMode))
+                {
+                    Passband = newPassband;
+                    Mode = newMode;
+                    return GenerateReturn(HamlibErrorcode.RIG_OK);
+                }
+
+                return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+            }
+
+            // --- Unknown command ---
+            return GenerateReturn(HamlibErrorcode.RIG_ENIMPL);
+        }
+
+        /// <summary>
+        /// Parses a frequency string that may be integer ("7074055") or
+        /// decimal ("7074055.000000") — both accepted by rigctld protocol.
+        /// Leading zeros and optional decimal part are handled.
+        /// </summary>
+        private static bool TryParseFrequency(string input, out long hz)
+        {
+            hz = 0;
+            if (string.IsNullOrEmpty(input))
+                return false;
+
+            // Must start with a digit
+            if (!char.IsDigit(input[0]))
+                return false;
+
+            // Walk the string manually to validate format: digits, optionally one dot, optionally more digits
+            bool hasDot = false;
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+                if (c == '.')
+                {
+                    if (hasDot)
+                        return false; // only one dot allowed
+                    hasDot = true;
+                }
+                else if (!char.IsDigit(c))
+                {
+                    return false; // invalid character
+                }
+            }
+
+            // Parse as double, then truncate to long (Hz integers only)
+            try
+            {
+                double d = double.Parse(input, System.Globalization.CultureInfo.InvariantCulture);
+                hz = (long)d;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private string GenerateReturn(HamlibErrorcode errorcode)
@@ -63,13 +175,67 @@ namespace SDRSharp.GpredictConnector
             {
                 try
                 {
-                    FrequencyInHz = long.Parse(value);
+                    // Parse as double first to handle decimal frequencies from WSJT-X (e.g. "7074055.000000")
+                    FrequencyInHz = (long)double.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
                 }
                 catch { }
             }
         }
 
         public event Action<long> FrequencyInHzChanged;
+
+        public string Mode
+        {
+            get
+            {
+                return mode_;
+            }
+            set
+            {
+                if (mode_ != value)
+                {
+                    mode_ = value;
+                    ModeChanged?.Invoke(mode_, passband_);
+                }
+            }
+        }
+
+        public int Passband
+        {
+            get
+            {
+                return passband_;
+            }
+            set
+            {
+                passband_ = value;
+            }
+        }
+
+        public event Action<string, int> ModeChanged;
+
+        private static bool IsValidMode(string mode)
+        {
+            switch (mode)
+            {
+                case "AM":
+                case "FM":
+                case "NFM":
+                case "WFM":
+                case "LSB":
+                case "USB":
+                case "DSB":
+                case "CW":
+                case "CWR":
+                case "RAW":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private string mode_ = string.Empty;
+        private int passband_ = 0;
 
         private long frequency_ = 0;
         private Thread frequency_set_thread_ = null;
