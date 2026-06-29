@@ -218,12 +218,12 @@ namespace UnitTestHamlibTCP
             public System.Drawing.Drawing2D.ColorBlend WaterfallGradient => throw new NotImplementedException();
             public bool CenterFrequencyIsLocked { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
-            public void RegisterKeyboardShortcut(Keys key, Action action)
+            public bool RegisterKeyboardShortcut(Keys key, Action action)
             {
                 throw new NotImplementedException();
             }
 
-            public IEnumerable<ISharpPlugin> GetSharpPlugins()
+            public IReadOnlyCollection<ISharpPlugin> GetSharpPlugins()
             {
                 throw new NotImplementedException();
             }
