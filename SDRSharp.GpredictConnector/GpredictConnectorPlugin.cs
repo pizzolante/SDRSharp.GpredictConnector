@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using SDRSharp.Radio;
 
 namespace SDRSharp.GpredictConnector
 {
@@ -55,6 +56,7 @@ namespace SDRSharp.GpredictConnector
             tcpServer.Enabled += _controlpanel.TcpServer_Enabled_Changed;
             rigctrl.FrequencyInHzChanged += _controlpanel.ReceivedFrequencyInHzChanged;
             rigctrl.FrequencyInHzChanged += Rigctrl_FrequencyInHzChanged;
+            rigctrl.ModeChanged += Rigctrl_ModeChanged;
 
             // Sync SDR# frequency changes back to rigctrl
             var notifier = control_ as INotifyPropertyChanged;
@@ -73,11 +75,42 @@ namespace SDRSharp.GpredictConnector
             {
                 rigctrl_.FrequencyInHz = control_.Frequency;
             }
+            else if (e.PropertyName == "DetectorType")
+            {
+                rigctrl_.Mode = control_.DetectorType.ToString().ToUpperInvariant();
+            }
         }
 
         private void Rigctrl_FrequencyInHzChanged(long frequency)
         {
             control_.Frequency = frequency;
+        }
+
+        private void Rigctrl_ModeChanged(string mode, int passband)
+        {
+            DetectorType? dt = MapModeToDetectorType(mode);
+            if (dt.HasValue)
+            {
+                control_.DetectorType = dt.Value;
+            }
+        }
+
+        private static DetectorType? MapModeToDetectorType(string mode)
+        {
+            switch (mode)
+            {
+                case "AM": return DetectorType.AM;
+                case "FM":
+                case "NFM": return DetectorType.NFM;
+                case "WFM": return DetectorType.WFM;
+                case "LSB": return DetectorType.LSB;
+                case "USB": return DetectorType.USB;
+                case "DSB": return DetectorType.DSB;
+                case "CW":
+                case "CWR": return DetectorType.CW;
+                case "RAW": return DetectorType.RAW;
+                default: return null;
+            }
         }
     }
 }

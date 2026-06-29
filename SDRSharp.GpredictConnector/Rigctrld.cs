@@ -11,6 +11,8 @@ namespace SDRSharp.GpredictConnector
         ///   f               — read current frequency (Hz)
         ///   F 123456789     — set frequency (integer Hz)
         ///   F 7074055.000   — set frequency (decimal Hz, as sent by WSJT-X / gpredict)
+        ///   m               — read current mode
+        ///   M USB 2400      — set mode and optional passband (Hz)
         /// </summary>
         public string ExecCommand(string command)
         {
@@ -44,6 +46,49 @@ namespace SDRSharp.GpredictConnector
                 if (TryParseFrequency(payload, out long hz))
                 {
                     FrequencyInHz = hz;
+                    return GenerateReturn(HamlibErrorcode.RIG_OK);
+                }
+
+                return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+            }
+
+            // --- Read mode: exact "m" ---
+            if (command == "m")
+            {
+                if (string.IsNullOrEmpty(mode_))
+                    return GenerateReturn(HamlibErrorcode.RIG_ENAVAIL);
+                return mode_ + "\n" + passband_.ToString() + "\n";
+            }
+
+            // --- Set mode: "M <mode> [<passband>]" ---
+            if (command.Length >= 1 && command[0] == 'M')
+            {
+                // If command is just "M" with no mode, it's a protocol error
+                if (command.Length < 2)
+                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+
+                string payload;
+                if (command[1] == ' ')
+                    payload = command.Substring(2);  // skip "M "
+                else
+                    payload = command.Substring(1);  // skip "M"
+
+                payload = payload.Trim();
+                if (payload.Length == 0)
+                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+
+                // Split mode and optional passband
+                string[] parts = payload.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                string newMode = parts[0].ToUpperInvariant();
+                int newPassband = 0;
+                if (parts.Length >= 2)
+                    int.TryParse(parts[1], out newPassband);
+
+                // Validate mode against known Hamlib modes
+                if (IsValidMode(newMode))
+                {
+                    Passband = newPassband;
+                    Mode = newMode;
                     return GenerateReturn(HamlibErrorcode.RIG_OK);
                 }
 
@@ -138,6 +183,59 @@ namespace SDRSharp.GpredictConnector
         }
 
         public event Action<long> FrequencyInHzChanged;
+
+        public string Mode
+        {
+            get
+            {
+                return mode_;
+            }
+            set
+            {
+                if (mode_ != value)
+                {
+                    mode_ = value;
+                    ModeChanged?.Invoke(mode_, passband_);
+                }
+            }
+        }
+
+        public int Passband
+        {
+            get
+            {
+                return passband_;
+            }
+            set
+            {
+                passband_ = value;
+            }
+        }
+
+        public event Action<string, int> ModeChanged;
+
+        private static bool IsValidMode(string mode)
+        {
+            switch (mode)
+            {
+                case "AM":
+                case "FM":
+                case "NFM":
+                case "WFM":
+                case "LSB":
+                case "USB":
+                case "DSB":
+                case "CW":
+                case "CWR":
+                case "RAW":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private string mode_ = string.Empty;
+        private int passband_ = 0;
 
         private long frequency_ = 0;
         private Thread frequency_set_thread_ = null;
