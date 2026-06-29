@@ -40,6 +40,17 @@ jobs:
         shell: bash
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
+      - name: Package GPredictConnector.zip
+        shell: pwsh
+        run: |
+          $dest = "SDRSharp.GpredictConnector/bin/Release/net9.0-windows/GPredictConnector.zip"
+          Compress-Archive -Path @(
+            "SDRSharp.GpredictConnector/bin/Release/net9.0-windows/SDRSharp.GpredictConnector.dll",
+            "CHANGELOG.md",
+            "LICENSE",
+            "README.md"
+          ) -DestinationPath $dest
+
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
@@ -53,6 +64,6 @@ jobs:
           draft: false
           prerelease: true
           files: |
-            SDRSharp.GpredictConnector/bin/Release/net9.0-windows/SDRSharp.GpredictConnector.dll
+            SDRSharp.GpredictConnector/bin/Release/net9.0-windows/GPredictConnector.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

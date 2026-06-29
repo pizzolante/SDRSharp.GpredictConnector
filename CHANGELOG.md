@@ -2,6 +2,7 @@
 
 ## v0.4
 * fixed command "f" due to SDRSharp 1922 changes (tnx @pizzolante IU7TUY)
+* added stub for set_mode/get_mode (m/M commands), awaiting HamLib sdrsharp.c backend implementation (tnx @pizzolante IU7TUY)
 * added workflow in github repository
 * tested with 
   * gpredict v2.3.37
