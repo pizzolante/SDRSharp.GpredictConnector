@@ -40,7 +40,7 @@ jobs:
         run: dotnet restore ${{ env.TEST_PROJECT }}
 
       - name: Test
-        run: dotnet test ${{ env.TEST_PROJECT }} -c ${{ env.BUILD_CONFIG }} --no-restore --verbosity normal
+        run: dotnet test ${{ env.TEST_PROJECT }} -c ${{ env.BUILD_CONFIG }} --verbosity normal
 
       - name: Get short SHA
         id: vars
