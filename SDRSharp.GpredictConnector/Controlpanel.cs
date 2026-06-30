@@ -26,19 +26,6 @@ namespace SDRSharp.GpredictConnector
             this.labelVersion.Text = "v"+fvi.FileMajorPart+"."+fvi.FileMinorPart;
         }
 
-        public  void ReceivedFrequencyInHzChanged(long frequency_in_hz)
-        {
-            if (InvokeRequired)
-            {
-                this.Invoke(new Action<long>(ReceivedFrequencyInHzChanged), new object[] { frequency_in_hz });
-                return;
-            }
-            else
-            {
-                this.labelFrequency.Text = frequency_in_hz.ToString();
-            }
-        }
-
         public void TcpServer_Enabled_Changed(bool enabled)
         {
             if (InvokeRequired)
@@ -71,6 +58,7 @@ namespace SDRSharp.GpredictConnector
         {
             if (enabled_)
             {
+                labelDescserverStat.ForeColor = Color.White;
                 if (connected_)
                 {
                     this.labelStatus.Text = "connected";
@@ -79,13 +67,14 @@ namespace SDRSharp.GpredictConnector
                 else
                 {
                     this.labelStatus.Text = "listening on port 4532";
-                    labelStatus.ForeColor = Color.Blue;
+                    labelStatus.ForeColor = Color.White;
                 }
             }
             else
             {
+                labelDescserverStat.ForeColor = Color.White;
                 this.labelStatus.Text = "disabled";
-                labelStatus.ForeColor = Color.DarkRed;
+                labelStatus.ForeColor = Color.White;
             }
         }
 

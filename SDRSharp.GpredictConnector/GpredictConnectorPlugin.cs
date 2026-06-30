@@ -54,7 +54,6 @@ namespace SDRSharp.GpredictConnector
             _controlpanel.ServerStop += tcpServer.Stop;
             tcpServer.Connected += _controlpanel.TcpServer_Connected_Changed;
             tcpServer.Enabled += _controlpanel.TcpServer_Enabled_Changed;
-            rigctrl.FrequencyInHzChanged += _controlpanel.ReceivedFrequencyInHzChanged;
             rigctrl.FrequencyInHzChanged += Rigctrl_FrequencyInHzChanged;
             rigctrl.ModeChanged += Rigctrl_ModeChanged;
 
