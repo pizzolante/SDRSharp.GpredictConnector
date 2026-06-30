@@ -3,7 +3,7 @@ name: Build & Release Plugin
 on:
   push:
     branches:
-      - airspy
+      - airspy-1922
   workflow_dispatch:
 
 permissions:
