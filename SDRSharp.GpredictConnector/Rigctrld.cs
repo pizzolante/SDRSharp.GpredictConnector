@@ -23,6 +23,37 @@ namespace SDRSharp.GpredictConnector
 
             string response;
 
+            // --- Poll commands: ";V ?", ";F ?", ";M ?" (Log4OM2 keep-alive polling) ---
+            if (command.Length >= 1 && command[0] == ';')
+            {
+                // Log4OM2 sends ";V ?" to poll VFO, ";F ?" for frequency, ";M ?" for mode
+                // Return the current value so Log4OM2 stays alive and polling
+                if (command.Length >= 3 && command[1] == 'V')
+                {
+                    response = "VFOA\n";
+                    LogCommand("TX", response);
+                    return response;
+                }
+                if (command.Length >= 3 && command[1] == 'F')
+                {
+                    response = FrequencyInHz.ToString() + "\n";
+                    LogCommand("TX", response);
+                    return response;
+                }
+                if (command.Length >= 3 && command[1] == 'M')
+                {
+                    string mode = string.IsNullOrEmpty(mode_) ? defaultMode_ : mode_;
+                    int pb = string.IsNullOrEmpty(mode_) ? defaultPassband_ : passband_;
+                    response = mode + "\n" + pb.ToString() + "\n";
+                    LogCommand("TX", response);
+                    return response;
+                }
+                // Unknown poll command → return OK to keep connection alive
+                response = "0\n";
+                LogCommand("TX", response);
+                return response;
+            }
+
             // --- Read frequency: exact "f" ---
             if (command == "f")
             {
@@ -177,6 +208,30 @@ namespace SDRSharp.GpredictConnector
             if (command.Length >= 1 && command[0] == 'S')
             {
                 response = GenerateReturn(HamlibErrorcode.RIG_OK);
+                LogCommand("TX", response);
+                return response;
+            }
+
+            // --- Extended get_freq: "\get_freq [VFO]" ---
+            if (command.StartsWith("\\get_freq"))
+            {
+                response = FrequencyInHz.ToString() + "\n" + GenerateReturn(HamlibErrorcode.RIG_OK);
+                LogCommand("TX", response);
+                return response;
+            }
+
+            // --- Extended set_freq: "\set_freq <Hz>" ---
+            if (command.StartsWith("\\set_freq"))
+            {
+                string payload = command.Substring(9).Trim(); // skip "\set_freq "
+                if (payload.Length > 0 && TryParseFrequency(payload, out long hz))
+                {
+                    FrequencyInHz = hz;
+                    response = GenerateReturn(HamlibErrorcode.RIG_OK);
+                    LogCommand("TX", response);
+                    return response;
+                }
+                response = GenerateReturn(HamlibErrorcode.RIG_EPROTO);
                 LogCommand("TX", response);
                 return response;
             }
