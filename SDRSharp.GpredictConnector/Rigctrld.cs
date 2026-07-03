@@ -13,6 +13,13 @@ namespace SDRSharp.GpredictConnector
         ///   F 7074055.000   — set frequency (decimal Hz, as sent by WSJT-X / gpredict)
         ///   m               — read current mode
         ///   M USB 2400      — set mode and optional passband (Hz)
+        ///   v               — read current VFO (always VFOA)
+        ///   V VFOA          — set VFO (accepted, only VFOA supported)
+        ///   t               — read PTT state (always 0 = RX)
+        ///   T 0             — set PTT (accepted, no real PTT)
+        ///   s               — read split VFO
+        ///   S 0 VFOA        — set split (accepted)
+        ///   _               — dump rig info
         /// </summary>
         public string ExecCommand(string command)
         {
@@ -94,6 +101,43 @@ namespace SDRSharp.GpredictConnector
 
                 return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
             }
+
+            // --- Read VFO: exact "v" ---
+            if (command == "v")
+                return "VFOA\n";
+
+            // --- Set VFO: "V <vfo>" ---
+            if (command.Length >= 1 && command[0] == 'V')
+            {
+                // Accept any VFO (we only have VFOA)
+                return GenerateReturn(HamlibErrorcode.RIG_OK);
+            }
+
+            // --- Read PTT: exact "t" ---
+            if (command == "t")
+                return "0\n";
+
+            // --- Set PTT: "T <ptt>" ---
+            if (command.Length >= 1 && command[0] == 'T')
+            {
+                // Accept, no real PTT
+                return GenerateReturn(HamlibErrorcode.RIG_OK);
+            }
+
+            // --- Read split VFO: exact "s" ---
+            if (command == "s")
+                return "0\nVFOA\n";
+
+            // --- Set split VFO: "S <split> <vfo>" ---
+            if (command.Length >= 1 && command[0] == 'S')
+            {
+                // Accept, no split support
+                return GenerateReturn(HamlibErrorcode.RIG_OK);
+            }
+
+            // --- Dump info: "_" ---
+            if (command == "_")
+                return "SDR#/gpredict\nVFOA\n";
 
             // --- Unknown command ---
             return GenerateReturn(HamlibErrorcode.RIG_ENIMPL);
