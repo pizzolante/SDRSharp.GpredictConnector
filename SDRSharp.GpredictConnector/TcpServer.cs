@@ -40,7 +40,10 @@ namespace SDRSharp.GpredictConnector
             while (!ct.IsCancellationRequested)
             {
                 //blocks until a client has connected to the server
-                TcpClient client = await this.tcpListener.AcceptTcpClientAsync();
+                // Use ConfigureAwait(false) to avoid marshalling to UI thread,
+                // which would delay the network read and cause rigctld to time out.
+                TcpClient client = await this.tcpListener.AcceptTcpClientAsync()
+                    .ConfigureAwait(false);
 
                 //only one client can connect !
                 NetworkStream clientStream = client.GetStream();
@@ -59,7 +62,7 @@ namespace SDRSharp.GpredictConnector
                     {
                         bytesRead = 0;
                         //read message from client
-                        bytesRead = await clientStream.ReadAsync(message, 0, 4096, ct).ConfigureAwait(true);
+                        bytesRead = await clientStream.ReadAsync(message, 0, 4096, ct).ConfigureAwait(false);
                         if (bytesRead == 0)
                         {
                             // Client disconnected
@@ -83,7 +86,7 @@ namespace SDRSharp.GpredictConnector
 
                             var answer = rigctrl.ExecCommand(command);
                             var answerBytes = (new System.Text.ASCIIEncoding()).GetBytes(answer);
-                            await clientStream.WriteAsync(answerBytes, 0, answerBytes.Length, ct).ConfigureAwait(true);
+                            await clientStream.WriteAsync(answerBytes, 0, answerBytes.Length, ct).ConfigureAwait(false);
                         }
                         // Any remaining text stays in 'pending' for the next read
                     }
