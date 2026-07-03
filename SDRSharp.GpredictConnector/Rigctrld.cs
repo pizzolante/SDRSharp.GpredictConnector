@@ -7,19 +7,8 @@ namespace SDRSharp.GpredictConnector
     {
         /// <summary>
         /// Parses a rigctld-compatible command and returns the response.
-        /// Supported commands:
-        ///   f               — read current frequency (Hz)
-        ///   F 123456789     — set frequency (integer Hz)
-        ///   F 7074055.000   — set frequency (decimal Hz, as sent by WSJT-X / gpredict)
-        ///   m               — read current mode
-        ///   M USB 2400      — set mode and optional passband (Hz)
-        ///   v               — read current VFO (always VFOA)
-        ///   V VFOA          — set VFO (accepted, only VFOA supported)
-        ///   t               — read PTT state (always 0 = RX)
-        ///   T 0             — set PTT (accepted, no real PTT)
-        ///   s               — read split VFO
-        ///   S 0 VFOA        — set split (accepted)
-        ///   _               — dump rig info
+        /// Supports Hamlib mode codes (AM=1, CW=2, USB=3, LSB=4, FM=6, WFM=7, CWR=8, DSB=25)
+        /// and mode names (AM, FM, NFM, WFM, LSB, USB, DSB, CW, CWR, RAW).
         /// </summary>
         public string ExecCommand(string command)
         {
@@ -29,16 +18,29 @@ namespace SDRSharp.GpredictConnector
             // Normalize: strip all whitespace, \r, \n from both ends
             command = command.Trim();
 
+            // Log received command for diagnostics
+            LogCommand("RX", command);
+
+            string response;
+
             // --- Read frequency: exact "f" ---
             if (command == "f")
-                return FrequencyInHz.ToString() + "\n";
+            {
+                response = FrequencyInHz.ToString() + "\n";
+                LogCommand("TX", response);
+                return response;
+            }
 
             // --- Set frequency: "F <number>" or "F<number>" ---
-            if (command.Length >= 1 && (command[0] == 'F' || command[0] == 'f'))
+            if (command.Length >= 1 && command[0] == 'F')
             {
-                // If command is just "F" (or "f") with no frequency, it's a protocol error
+                // If command is just "F" with no frequency, it's a protocol error
                 if (command.Length < 2)
-                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                {
+                    response = GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                    LogCommand("TX", response);
+                    return response;
+                }
 
                 string payload;
                 if (command[1] == ' ')
@@ -48,31 +50,44 @@ namespace SDRSharp.GpredictConnector
 
                 payload = payload.Trim();
                 if (payload.Length == 0)
-                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                {
+                    response = GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                    LogCommand("TX", response);
+                    return response;
+                }
 
                 if (TryParseFrequency(payload, out long hz))
                 {
                     FrequencyInHz = hz;
-                    return GenerateReturn(HamlibErrorcode.RIG_OK);
+                    response = GenerateReturn(HamlibErrorcode.RIG_OK);
+                    LogCommand("TX", response);
+                    return response;
                 }
 
-                return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                response = GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                LogCommand("TX", response);
+                return response;
             }
 
             // --- Read mode: exact "m" ---
             if (command == "m")
             {
-                if (string.IsNullOrEmpty(mode_))
-                    return GenerateReturn(HamlibErrorcode.RIG_ENAVAIL);
-                return mode_ + "\n" + passband_.ToString() + "\n";
+                string mode = string.IsNullOrEmpty(mode_) ? defaultMode_ : mode_;
+                int pb = string.IsNullOrEmpty(mode_) ? defaultPassband_ : passband_;
+                response = mode + "\n" + pb.ToString() + "\n";
+                LogCommand("TX", response);
+                return response;
             }
 
-            // --- Set mode: "M <mode> [<passband>]" ---
+            // --- Set mode: "M <mode> [<passband>]" (string or numeric) ---
             if (command.Length >= 1 && command[0] == 'M')
             {
-                // If command is just "M" with no mode, it's a protocol error
                 if (command.Length < 2)
-                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                {
+                    response = GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                    LogCommand("TX", response);
+                    return response;
+                }
 
                 string payload;
                 if (command[1] == ' ')
@@ -82,65 +97,130 @@ namespace SDRSharp.GpredictConnector
 
                 payload = payload.Trim();
                 if (payload.Length == 0)
-                    return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                {
+                    response = GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                    LogCommand("TX", response);
+                    return response;
+                }
 
                 // Split mode and optional passband
                 string[] parts = payload.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                string newMode = parts[0].ToUpperInvariant();
+                string rawMode = parts[0];
                 int newPassband = 0;
                 if (parts.Length >= 2)
                     int.TryParse(parts[1], out newPassband);
 
-                // Validate mode against known Hamlib modes
+                // Try string mode first, then numeric Hamlib mode code
+                string newMode = rawMode.ToUpperInvariant();
+                if (!IsValidMode(newMode))
+                {
+                    // Try numeric Hamlib mode code (1=AM, 2=CW, 3=USB, 4=LSB, 6=FM, 7=WFM, 8=CWR, 25=DSB)
+                    newMode = MapModeNumber(rawMode);
+                }
+
                 if (IsValidMode(newMode))
                 {
                     Passband = newPassband;
                     Mode = newMode;
-                    return GenerateReturn(HamlibErrorcode.RIG_OK);
+                    response = GenerateReturn(HamlibErrorcode.RIG_OK);
+                    LogCommand("TX", response);
+                    return response;
                 }
 
-                return GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                // Unknown mode
+                response = GenerateReturn(HamlibErrorcode.RIG_EPROTO);
+                LogCommand("TX", response);
+                return response;
             }
 
             // --- Read VFO: exact "v" ---
             if (command == "v")
-                return "VFOA\n";
+            {
+                response = "VFOA\n";
+                LogCommand("TX", response);
+                return response;
+            }
 
             // --- Set VFO: "V <vfo>" ---
             if (command.Length >= 1 && command[0] == 'V')
             {
-                // Accept any VFO (we only have VFOA)
-                return GenerateReturn(HamlibErrorcode.RIG_OK);
+                response = GenerateReturn(HamlibErrorcode.RIG_OK);
+                LogCommand("TX", response);
+                return response;
             }
 
             // --- Read PTT: exact "t" ---
             if (command == "t")
-                return "0\n";
+            {
+                response = "0\n";
+                LogCommand("TX", response);
+                return response;
+            }
 
             // --- Set PTT: "T <ptt>" ---
             if (command.Length >= 1 && command[0] == 'T')
             {
-                // Accept, no real PTT
-                return GenerateReturn(HamlibErrorcode.RIG_OK);
+                response = GenerateReturn(HamlibErrorcode.RIG_OK);
+                LogCommand("TX", response);
+                return response;
             }
 
             // --- Read split VFO: exact "s" ---
             if (command == "s")
-                return "0\nVFOA\n";
+            {
+                response = "0\nVFOA\n";
+                LogCommand("TX", response);
+                return response;
+            }
 
             // --- Set split VFO: "S <split> <vfo>" ---
             if (command.Length >= 1 && command[0] == 'S')
             {
-                // Accept, no split support
-                return GenerateReturn(HamlibErrorcode.RIG_OK);
+                response = GenerateReturn(HamlibErrorcode.RIG_OK);
+                LogCommand("TX", response);
+                return response;
             }
 
-            // --- Dump info: "_" ---
-            if (command == "_")
-                return "SDR#/gpredict\nVFOA\n";
+            // --- Dump info / extended dump_state: "_" or "\dump_state" ---
+            if (command == "_" || command == "\\dump_state")
+            {
+                response = string.Format(
+                    "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n" +
+                    "10\n11\n12\n13\n14\n15\n" +
+                    "{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n" +
+                    "0\n0\n0\n" +
+                    "0\n",
+                    GetCurrentModeAsNumber(),
+                    GetCurrentModeAsNumber(),
+                    "0",       // freq
+                    FrequencyInHz.ToString(),
+                    "VFOA",
+                    "0"
+                );
+                LogCommand("TX", response);
+                return response;
+            }
+
+            // --- Check VFO: "\chk_vfo" ---
+            if (command == "\\chk_vfo")
+            {
+                response = "CHKVFO 1\n";
+                LogCommand("TX", response);
+                return response;
+            }
+
+            // --- VFO select by number: "1", "2", ... ---
+            if (command.Length == 1 && char.IsDigit(command[0]))
+            {
+                response = GenerateReturn(HamlibErrorcode.RIG_OK);
+                LogCommand("TX", response);
+                return response;
+            }
 
             // --- Unknown command ---
-            return GenerateReturn(HamlibErrorcode.RIG_ENIMPL);
+            response = GenerateReturn(HamlibErrorcode.RIG_ENIMPL);
+            LogCommand("TX", response);
+            return response;
         }
 
         /// <summary>
@@ -191,6 +271,71 @@ namespace SDRSharp.GpredictConnector
         private string GenerateReturn(HamlibErrorcode errorcode)
         {
             return "RPRT " + ((int)errorcode).ToString() + "\n";
+        }
+
+        /// <summary>
+        /// Maps a Hamlib numeric mode code (as string) to a mode name string.
+        /// Hamlib mode codes: 0=NONE, 1=AM, 2=CW, 3=USB, 4=LSB, 5=RTTY, 6=FM, 7=WFM, 8=CWR, 25=DSB
+        /// </summary>
+        private static string MapModeNumber(string rawMode)
+        {
+            if (!int.TryParse(rawMode, out int modeNum))
+                return rawMode.ToUpperInvariant();
+
+            switch (modeNum)
+            {
+                case 1: return "AM";
+                case 2: return "CW";
+                case 3: return "USB";
+                case 4: return "LSB";
+                case 6: return "FM";
+                case 7: return "WFM";
+                case 8: return "CWR";
+                case 25: return "DSB";
+                default: return modeNum.ToString(); // unknown, will fail IsValidMode
+            }
+        }
+
+        /// <summary>
+        /// Returns the current mode as Hamlib numeric code for \dump_state response.
+        /// </summary>
+        private int GetCurrentModeAsNumber()
+        {
+            string mode = string.IsNullOrEmpty(mode_) ? defaultMode_ : mode_;
+            switch (mode)
+            {
+                case "AM": return 1;
+                case "CW": return 2;
+                case "USB": return 3;
+                case "LSB": return 4;
+                case "FM": return 6;
+                case "NFM": return 6;
+                case "WFM": return 7;
+                case "CWR": return 8;
+                case "DSB": return 25;
+                default: return 1; // default AM
+            }
+        }
+
+        /// <summary>
+        /// Writes command log to %TEMP%\SDRSharp.GpredictConnector.log for diagnostics.
+        /// </summary>
+        private static void LogCommand(string direction, string data)
+        {
+            try
+            {
+                string logPath = System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(),
+                    "SDRSharp.GpredictConnector.log");
+                string line = string.Format("{0:yyyy-MM-dd HH:mm:ss.fff} [{1}] {2}",
+                    DateTime.Now, direction,
+                    data.Replace("\r", "\\r").Replace("\n", "\\n"));
+                System.IO.File.AppendAllText(logPath, line + Environment.NewLine);
+            }
+            catch
+            {
+                // Silently ignore logging errors
+            }
         }
         public long FrequencyInHz
         {
@@ -278,8 +423,10 @@ namespace SDRSharp.GpredictConnector
             }
         }
 
-        private string mode_ = string.Empty;
+        private string mode_ = "FM";  // default so rigctld 'm' command never returns error
         private int passband_ = 0;
+        private const string defaultMode_ = "FM";
+        private const int defaultPassband_ = 0;
 
         private long frequency_ = 0;
         private Thread frequency_set_thread_ = null;
